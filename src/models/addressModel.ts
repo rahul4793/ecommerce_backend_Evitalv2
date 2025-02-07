@@ -47,14 +47,50 @@ export const addAddressToDB = async (userId: number, fullAddress: string, state:
     }
 };
 
-export const updateAddressInDB = async (userId: number, addressId: number, fullAddress: string, state: string, city: string, zipCode: string) => {
+// export const updateAddressInDB = async (userId: number, addressId: number, fullAddress: string, state: string, city: string, zipCode: string) => {
+//     try {
+//         const result = await pool.query(
+//             `UPDATE addresses 
+//              SET full_address = $1, state = $2, city = $3, zip_code = $4, updated_at = CURRENT_TIMESTAMP 
+//              WHERE addresses_id = $5 AND users_id = $6 RETURNING *`,
+//             [fullAddress, state, city, zipCode, addressId, userId]
+//         );
+//         return result.rows.length > 0
+//             ? { error: false, message: "Address updated successfully", data: result.rows[0] }
+//             : { error: true, message: "Address not found or update failed", data: null };
+//     } catch (error) {
+//         return { error: true, message: "Database error while updating address", data: error };
+//     }
+// };
+
+export const updateAddressInDB = async (userId: number, addressId: number, updateData: any) => {
     try {
-        const result = await pool.query(
-            `UPDATE addresses 
-             SET full_address = $1, state = $2, city = $3, zip_code = $4, updated_at = CURRENT_TIMESTAMP 
-             WHERE addresses_id = $5 AND users_id = $6 RETURNING *`,
-            [fullAddress, state, city, zipCode, addressId, userId]
-        );
+        const fields = [];
+        const values = [];
+        let index = 1;
+
+        for (const key in updateData) {
+            if (updateData[key] !== undefined && updateData[key] !== null) {
+                fields.push(`${key} = $${index}`);
+                values.push(updateData[key]);
+                index++;
+            }
+        }
+
+        if (fields.length === 0) {
+            return { error: true, message: "No fields provided for update", data: null };
+        }
+
+        fields.push(`updated_at = CURRENT_TIMESTAMP`);
+        const query = `
+            UPDATE addresses 
+            SET ${fields.join(", ")}
+            WHERE addresses_id = $${index} AND users_id = $${index + 1}
+            RETURNING *`;
+
+        values.push(addressId, userId);
+
+        const result = await pool.query(query, values);
         return result.rows.length > 0
             ? { error: false, message: "Address updated successfully", data: result.rows[0] }
             : { error: true, message: "Address not found or update failed", data: null };

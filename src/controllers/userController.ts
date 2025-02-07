@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 import {
     createUser, deleteUserFromDB, findUserByEmail, getUserByEmailFromDB, getUserByIdFromDB, updateUserInDB
 } from '../models/userModel';
+import { blacklistToken, isTokenBlacklisted } from '../models/blacklistModel';
 
 dotenv.config();
 
@@ -72,8 +73,37 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     }
 };
 
-export const logout = (req: Request, res: Response): void => {
-    res.status(200).json({ error: false, message: "Logged out successfully. Clear your cookies now", data: null });
+// export const logout = (req: Request, res: Response): void => {
+//     res.status(200).json({ error: false, message: "Logged out successfully. Clear your cookies now", data: null });
+// };
+
+
+
+// Logout controller using JWT Blacklist
+export const logout = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const token = req.header('Authorization')?.split(' ')[1];
+
+        if (!token) {
+            res.status(400).json({ error: true, message: "No token provided", data: null });
+            return;
+        }
+
+        // Check if token is already blacklisted
+        const isBlacklisted = await isTokenBlacklisted(token);
+        if (isBlacklisted) {
+            res.status(400).json({ error: true, message: "Token is already invalidated", data: null });
+            return;
+        }
+
+        // Blacklist the token
+        await blacklistToken(token);
+
+        res.status(200).json({ error: false, message: "Logged out successfully", data: null });
+    } catch (err) {
+        console.error("Logout error:", err);
+        res.status(500).json({ error: true, message: "Error logging out", data: err });
+    }
 };
 
 export const getUserProfile = async (req: Request, res: Response): Promise<void> => {
@@ -119,6 +149,9 @@ export const getUserByEmail = async (req: Request, res: Response): Promise<void>
         res.status(500).json({ error: true, message: "Error finding user", data: err });
     }
 };
+
+
+
 export const updateUserProfile = async (req: Request, res: Response): Promise<void> => {
     try {
         const updatedUser = await updateUserInDB((req as any).user?.userId, req.body);
@@ -127,6 +160,9 @@ export const updateUserProfile = async (req: Request, res: Response): Promise<vo
         res.status(500).json({ error: true, message: "Error updating profile", data: err });
     }
 };
+
+
+
 
 export const deleteUserById = async (req: Request, res: Response): Promise<void> => {
     try {

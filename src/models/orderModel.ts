@@ -129,3 +129,43 @@ export const updateProductStock = async (productId: number, quantityOrdered: num
 
     return result.rows[0];
 };
+
+
+
+
+
+// Get Order Details by Order ID for a User
+export const getOrderDetailsById = async (userId: number, orderId: number) => {
+    try {
+        const orderResult = await pool.query(
+            `SELECT o.orders_id, o.total_amount, o.discount_amount, o.net_amount, o.shipping_amount, 
+                    o.status, o.payment_status, o.created_at, a.full_address
+             FROM orders o
+             JOIN addresses a ON o.addresses_id = a.addresses_id
+             WHERE o.orders_id = $1 AND o.users_id = $2`,
+            [orderId, userId]
+        );
+
+        if (orderResult.rowCount === 0) {
+            return { error: true, message: "Order not found or access denied", data: null };
+        }
+
+        const orderDetails = orderResult.rows[0];
+
+        // Fetch order items
+        const itemsResult = await pool.query(
+            `SELECT oi.order_items_id, oi.products_id, p.product_name, oi.quantity, oi.price, oi.total_amount
+             FROM order_items oi
+             JOIN products p ON oi.products_id = p.products_id
+             WHERE oi.orders_id = $1`,
+            [orderId]
+        );
+
+        orderDetails.items = itemsResult.rows;
+
+        return { error: false, message: "Order details fetched successfully", data: orderDetails };
+    } catch (err) {
+        console.error("Error fetching order details:", err);
+        return { error: true, message: "Database error", data: err };
+    }
+};

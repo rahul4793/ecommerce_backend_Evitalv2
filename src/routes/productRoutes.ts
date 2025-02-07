@@ -1,5 +1,5 @@
 import express from 'express';
-import { authenticateUser, isAdmin } from '../middleware/authMiddleware';
+import { authenticateUser, debounceMiddleware, isAdmin } from '../middleware/authMiddleware';
 
 import {
     createProductController,
@@ -9,7 +9,7 @@ import {
     deleteProductController,
     getProductByCategoryController
 } from '../controllers/productController';
-import { productValidating } from '../validations/productValidation';
+import { productValidating, productValidatingUpdate } from '../validations/productValidation';
 import validateRequest from '../middleware/validateRequest';
 import { validateParams } from '../validations/routesValidation';
 
@@ -20,8 +20,9 @@ router.get('/', getProductsController);
 router.get('/:id', getProductController);
 router.get('/category/:id',getProductByCategoryController);
 
-router.post('/', authenticateUser, isAdmin,validateRequest(productValidating), validateParams,createProductController);
-router.put('/:id', authenticateUser, isAdmin, validateRequest(productValidating),validateParams,updateProductController);
+router.post('/', authenticateUser, debounceMiddleware(300),isAdmin,validateRequest(productValidating),createProductController);
+router.put('/:id', authenticateUser, isAdmin, validateRequest(productValidatingUpdate),validateParams,updateProductController);
+
 router.delete('/:id', authenticateUser, isAdmin, validateParams,deleteProductController);
 
 export default router;

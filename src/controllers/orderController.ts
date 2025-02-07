@@ -50,12 +50,12 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
         for (const item of cartItems) {
             const product = await getProductDetails(item.products_id);
             if (!product) {
-                res.status(400).json({ message: `Product ID ${item.products_id} not found.` });
+                res.status(400).json({ error:true,message: `Product ID ${item.products_id} not found.`,data:product.data });
                 return;
             }
 
             if (product.stock_quantity < item.quantity) {
-                res.status(400).json({ message: `Not enough stock for ${product.product_name}` });
+                res.status(400).json({ error:true,message: `Not enough stock for ${product.product_name}`,data:null });
                 return;
             }
 
@@ -162,5 +162,34 @@ export const cancelOrder = async (req: Request, res: Response): Promise<void> =>
         res.status(200).json({ message: "Order canceled successfully" });
     } catch (err) {
         res.status(500).json({ message: "Error canceling order", error: err });
+    }
+};
+
+
+
+
+import { getOrderDetailsById } from '../models/orderModel';
+
+export const getOrderDetailsController = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const userId = (req as any).user?.userId; 
+        const { orders_id } = req.body;
+
+        if (!orders_id || typeof orders_id !== 'number') {
+            res.status(400).json({ error: true, message: "Invalid or missing order_id", data: null });
+            return;
+        }
+
+        const orderDetails = await getOrderDetailsById(userId, orders_id);
+
+        if (orderDetails.error) {
+            res.status(404).json(orderDetails);
+            return;
+        }
+
+        res.status(200).json(orderDetails);
+    } catch (err) {
+        console.error("Error fetching order details:", err);
+        res.status(500).json({ error: true, message: "Error fetching order details", data: err });
     }
 };

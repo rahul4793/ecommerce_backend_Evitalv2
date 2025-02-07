@@ -64,16 +64,32 @@ export const addAddress = async (req: Request, res: Response) => {
     }
 };
 
+// export const updateAddress = async (req: Request, res: Response) => {
+//     try {
+//         const userId = (req as any).user?.userId;
+//         const addressId = Number(req.params.id);
+//         const { full_address, state, city, zip_code } = req.body;
+
+//         const result = await updateAddressInDB(userId, addressId, full_address, state, city, zip_code);
+//         res.status(result.error ? 500 : 200).json(result);
+//     } catch (err) {
+//         res.status(500).json({ message: "Error updating address", error: err });
+//     }
+// };
 export const updateAddress = async (req: Request, res: Response) => {
     try {
         const userId = (req as any).user?.userId;
         const addressId = Number(req.params.id);
-        const { full_address, state, city, zip_code } = req.body;
+        
+        if (Object.keys(req.body).length === 0) {
+            res.status(400).json({ error: true, message: "No fields provided for update", data: null });
+            return;
+        }
 
-        const result = await updateAddressInDB(userId, addressId, full_address, state, city, zip_code);
+        const result = await updateAddressInDB(userId, addressId, req.body);
         res.status(result.error ? 500 : 200).json(result);
     } catch (err) {
-        res.status(500).json({ message: "Error updating address", error: err });
+        res.status(500).json({ error: true, message: "Error updating address", data: err });
     }
 };
 

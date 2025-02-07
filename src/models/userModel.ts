@@ -76,25 +76,12 @@ export const updateUserInDB = async (id: number, userData: any): Promise<Service
     const values = [];
     let index = 1;
 
-    if (userData.first_name) {
-        fields.push(`first_name = $${index}`);
-        values.push(userData.first_name);
-        index++;
-    }
-    if (userData.last_name) {
-        fields.push(`last_name = $${index}`);
-        values.push(userData.last_name);
-        index++;
-    }
-    if (userData.email) {
-        fields.push(`email = $${index}`);
-        values.push(userData.email);
-        index++;
-    }
-    if (userData.phone_number) {
-        fields.push(`phone_number = $${index}`);
-        values.push(userData.phone_number);
-        index++;
+    for (const key in userData) {
+        if (userData[key] !== undefined && userData[key] !== null) {
+            fields.push(`${key} = $${index}`);
+            values.push(userData[key]);
+            index++;
+        }
     }
 
     if (fields.length === 0) {
@@ -111,8 +98,9 @@ export const updateUserInDB = async (id: number, userData: any): Promise<Service
     values.push(id);
 
     const result = await pool.query(query, values);
-    return { error: false, message: "Profile updated", data: result.rows[0] };
+    return { error: false, message: "Profile updated successfully", data: result.rows[0] };
 };
+
 
 // Delete User by ID
 export const deleteUserFromDB = async (id: number): Promise<ServiceResponse> => {
