@@ -2,7 +2,9 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import pool from '../config/db';
 import dotenv from 'dotenv';
-import { isTokenBlacklisted } from '../models/blacklistModel';
+import { blacklistModel } from '../models/blacklistModel';
+
+const blackObj = new blacklistModel();
 
 dotenv.config();
 // const JWT_SECRET = "Rahulsecret";
@@ -14,7 +16,7 @@ export const authenticateUser = async (req: Request, res: Response, next: NextFu
         return;
     }
 try {
-    const blacklisted = await isTokenBlacklisted(token);
+    const blacklisted = await blackObj.isTokenBlacklisted(token);
     if (blacklisted) {
         res.status(403).json({ message: "Invalid token. Please log in again." });
         return;

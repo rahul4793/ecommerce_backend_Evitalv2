@@ -6,3 +6,6 @@ export const cartValid = Joi.object({
     });
 
 
+    export const quantitycartValid = Joi.object({
+        quantity: Joi.number().min(1).max(100).required(),
+        });

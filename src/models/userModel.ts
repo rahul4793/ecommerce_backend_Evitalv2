@@ -1,14 +1,18 @@
 import pool from '../config/db';
 import bcrypt from 'bcryptjs';
-
+import dotenv from 'dotenv';
+import jwt from 'jsonwebtoken';
 interface ServiceResponse {
     error: boolean;
     message: string;
     data: any;
 }
+dotenv.config();
 
-// Find user by email
-export const findUserByEmail = async (email: string): Promise<ServiceResponse> => {
+
+export class userClass{
+
+async findUserByEmail (email: string): Promise<ServiceResponse>  {
     try {
         const query = `SELECT * FROM users WHERE email = $1`;
         const { rows } = await pool.query(query, [email]);
@@ -19,22 +23,65 @@ export const findUserByEmail = async (email: string): Promise<ServiceResponse> =
             data: rows[0] || null,
         };
     } catch (error) {
+        console.error("Database error in findUserByEmail:", error);
         return {
             error: true,
             message: "Database error while searching for user",
-            data: error,
+            data: {}, 
         };
     }
 };
 
-// Create a new user
-export const createUser = async (
+async loginUserService  (email: string, password: string): Promise<ServiceResponse> {
+    try {
+        const query = `SELECT * FROM users WHERE email = $1`;
+        const { rows } = await pool.query(query, [email]);
+        const user = rows[0];
+
+        if (!user) {
+            return {
+                error: true,
+                message: 'Invalid credentials',
+                data: null,
+            };
+        }
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) {
+            return {
+                error: true,
+                message: 'Invalid credentials',
+                data: null,
+            };
+        }
+        const token = jwt.sign(
+            { userId: user.users_id, role: user.role },
+            process.env.JWT_SECRET as string, 
+            { expiresIn: '4h' }
+        );
+
+        return {
+            error: false,
+            message: 'Login successful',
+            data: { token },
+        };
+
+    } catch (error) {
+        console.error("Login Service Error:", error);
+        return {
+            error: true,
+            message: 'Server error',
+            data: null,
+        };
+    }
+};
+
+async createUser  (
     first_name: string,
     last_name: string,
     email: string,
     password: string,
     phone_number?: string
-): Promise<ServiceResponse> => {
+): Promise<ServiceResponse>  {
     try {
         const hashedPassword = await bcrypt.hash(password, 10);
         const result = await pool.query(
@@ -57,8 +104,7 @@ export const createUser = async (
     }
 };
 
-// Get User By ID
-export const getUserByIdFromDB = async (id: number): Promise<ServiceResponse> => {
+async getUserByIdFromDB  (id: number): Promise<ServiceResponse>  {
     try {
         const result = await pool.query(
             `SELECT users_id, first_name, last_name, email, phone_number FROM users WHERE users_id = $1`,
@@ -70,8 +116,7 @@ export const getUserByIdFromDB = async (id: number): Promise<ServiceResponse> =>
     }
 };
 
-// Update User Profile
-export const updateUserInDB = async (id: number, userData: any): Promise<ServiceResponse> => {
+async updateUserInDB (id: number, userData: any): Promise<ServiceResponse> {
     const fields = [];
     const values = [];
     let index = 1;
@@ -102,14 +147,13 @@ export const updateUserInDB = async (id: number, userData: any): Promise<Service
 };
 
 
-// Delete User by ID
-export const deleteUserFromDB = async (id: number): Promise<ServiceResponse> => {
+async deleteUserFromDB (id: number): Promise<ServiceResponse> {
+    
     const result = await pool.query(`DELETE FROM users WHERE users_id = $1 RETURNING users_id`, [id]);
     return { error: false, message: "User deleted", data: result.rows[0] };
 };
 
-// Get User By Email From DB
-export const getUserByEmailFromDB = async (email: string): Promise<ServiceResponse> => {
+async getUserByEmailFromDB  (email: string): Promise<ServiceResponse>  {
     const result = await pool.query(
         `SELECT users_id, first_name, last_name, email, phone_number, role, status, created_at, updated_at 
          FROM users WHERE email = $1`,
@@ -117,3 +161,6 @@ export const getUserByEmailFromDB = async (email: string): Promise<ServiceRespon
     );
     return { error: false, message: "User found", data: result.rows[0] };
 };
+
+
+}

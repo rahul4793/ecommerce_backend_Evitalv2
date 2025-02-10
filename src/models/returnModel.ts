@@ -6,8 +6,12 @@ interface ServiceResponse {
     data: any;
 }
 
+
+export class returnModel {
+
+
 // Check if user has ordered this product and order is in status 1 meaning placed
-export const checkUserOrderStatus = async (userId: number, orderItemId: number): Promise<boolean> => {
+async checkUserOrderStatus (userId: number, orderItemId: number) {
     const result = await pool.query(
         `SELECT 1 FROM order_items oi                                       
          JOIN orders o ON oi.orders_id = o.orders_id
@@ -18,7 +22,7 @@ export const checkUserOrderStatus = async (userId: number, orderItemId: number):
 };
 
 // Insert return request into item_return
-export const requestReturn = async (orderItemId: number, returnReason: string): Promise<ServiceResponse> => {
+async requestReturn  (orderItemId: number, returnReason: string): Promise<ServiceResponse>  {
     try {
         const result = await pool.query(
             `INSERT INTO item_return (order_items_id, return_reason, return_status, return_date, created_at)
@@ -31,8 +35,43 @@ export const requestReturn = async (orderItemId: number, returnReason: string): 
     }
 };
 
+async processReturnRequest  (userId: number, orderItemId: number, quantity: number, returnReason: string): Promise<ServiceResponse>  {
+    try {
+        const orderValid = await this.checkUserOrderStatus(userId, orderItemId);
+        if (!orderValid) {
+            return { error: true, message: "You can only return items from your placed orders.", data: null };
+        }
+        const orderedQuantity = await this.getOrderedQuantity(orderItemId);
+        const alreadyReturnedQuantity = await this.getReturnedQuantity(orderItemId);
+        if (alreadyReturnedQuantity + quantity > orderedQuantity) {
+            return {
+                error: true,
+                message: `You have already returned ${alreadyReturnedQuantity} items. You can only return ${orderedQuantity - alreadyReturnedQuantity} more.`,
+                data: null
+            };
+        }
+        const returnRequest = await this.requestReturn(orderItemId, returnReason);
+        if (returnRequest.error) {
+            return returnRequest; 
+        }
+        const returnItemDetails = await this.addReturnItemDetails(returnRequest.data.item_return_id, orderItemId, quantity);
+        if (returnItemDetails.error) {
+            return returnItemDetails; 
+        }
+        return {
+            error: false,
+            message: "Return request placed successfully, waiting for admin approval.",
+            data: returnRequest.data
+        };
+    } catch (error) {
+        console.error("Error processing return request in model:", error);
+        return { error: true, message: "Error processing return", data: null };
+    }
+};
+
+
 // Insert return details into return_item_details
-export const addReturnItemDetails = async (returnItemId: number, orderItemId: number, quantity: number): Promise<ServiceResponse> => {
+async addReturnItemDetails  (returnItemId: number, orderItemId: number, quantity: number): Promise<ServiceResponse> {
     try {
         const result = await pool.query(
             `INSERT INTO return_item_details (returns_id, order_items_id, products_id, quantity, price, return_status, return_date, created_at)
@@ -47,7 +86,7 @@ export const addReturnItemDetails = async (returnItemId: number, orderItemId: nu
 };
 
 // Approve return & update refund in item_return
-export const approveReturnRequest = async (returnItemId: number, refundAmount: number): Promise<boolean> => {
+async approveReturnRequest  (returnItemId: number, refundAmount: number): Promise<boolean>  {
     try {
         const result = await pool.query(
             `UPDATE item_return 
@@ -72,7 +111,7 @@ export const approveReturnRequest = async (returnItemId: number, refundAmount: n
 };
 
 // Calculate refund amount
-export const calculateRefundAmount = async (returnItemId: number): Promise<number> => {
+async calculateRefundAmount  (returnItemId: number): Promise<number>{
     try {
         const result = await pool.query(
             `SELECT SUM(price * quantity) AS refund_amount 
@@ -85,8 +124,42 @@ export const calculateRefundAmount = async (returnItemId: number): Promise<numbe
     }
 };
 
+
+
+
+async processReturnApproval  (returnItemId: number): Promise<ServiceResponse> {
+    try {
+        const refundAmount = await this.calculateRefundAmount(returnItemId);
+        if (refundAmount === 0) { // Or if (!refundAmount) if you want to treat 0 as an error too
+            return { error: true, message: "Refund calculation failed.", data: null };
+        }
+
+        const isApproved = await this.approveReturnRequest(returnItemId, refundAmount);
+        if (!isApproved) {
+            return { error: true, message: "Return approval failed.", data: null };
+        }
+
+        await this.updateStockAfterReturn(returnItemId);
+
+        return {
+            error: false,
+            message: "Return request approved. Refund processed.",
+            data: { refundAmount }
+        };
+
+    } catch (error) {
+        console.error("Error processing return approval in model:", error);
+        return { error: true, message: "Error approving return", data: null };
+    }
+};
+
+
+
+
+
+
 // Update stock after return approval
-export const updateStockAfterReturn = async (returnItemId: number): Promise<void> => {
+async updateStockAfterReturn (returnItemId: number): Promise<void> {
     await pool.query(
         `UPDATE products 
          SET stock_quantity = stock_quantity + (SELECT SUM(quantity) FROM return_item_details WHERE returns_id = $1)
@@ -96,7 +169,7 @@ export const updateStockAfterReturn = async (returnItemId: number): Promise<void
 };
 
 // Get Ordered Quantity from order_items
-export const getOrderedQuantity = async (orderItemId: number): Promise<number> => {
+async getOrderedQuantity  (orderItemId: number): Promise<number>  {
     const result = await pool.query(
         `SELECT quantity FROM order_items WHERE order_items_id = $1`,
         [orderItemId]
@@ -105,38 +178,35 @@ export const getOrderedQuantity = async (orderItemId: number): Promise<number> =
 };
 
 // Get Already Returned Quantity from return_item_details table
-export const getReturnedQuantity = async (orderItemId: number): Promise<number> => {
+async getReturnedQuantity  (orderItemId: number): Promise<number>  {
     const result = await pool.query(
         `SELECT COALESCE(SUM(quantity), 0) AS returned_quantity 
          FROM return_item_details 
-         WHERE order_items_id = $1 AND return_status != 3`, // Exclude rejected returns because rejected returns have status 3
+         WHERE order_items_id = $1 AND return_status != 3`,//excluding rejected item 3
         [orderItemId]
     );
     return result.rows[0]?.returned_quantity || 0;
 };
 
-export const getUserReturnedItems = async (userId: number): Promise<ServiceResponse> => {
+async getUserReturnedItems  (userId: number): Promise<ServiceResponse>  {
     try {
         const result = await pool.query(
-            `SELECT 
-                ri.return_items_id,
-                p.product_name, 
-                ri.quantity, 
-                ri.price AS refunded_price,
-                ir.return_status, 
-                ir.return_date, 
-                ir.total_amount AS refund_amount
-            FROM return_item_details ri
-            JOIN item_return ir ON ri.returns_id = ir.item_return_id
-            JOIN order_items oi ON ri.order_items_id = oi.order_items_id
-            JOIN orders o ON oi.orders_id = o.orders_id
-            JOIN products p ON ri.products_id = p.products_id
-            WHERE o.users_id = $1
-            ORDER BY ir.return_date DESC`,
-            [userId]
+    `SELECT 
+    rid.Return_items_Id, 
+    p.Product_name, 
+    rid.Quantity, 
+    rid.Return_status, 
+    (rid.Quantity * rid.Price) AS Total_amount
+FROM Return_item_details rid
+JOIN Products p ON rid.Products_Id = p.Products_Id
+JOIN Order_items oi ON rid.Order_items_Id = oi.Order_items_Id
+JOIN Orders o ON oi.Orders_Id = o.Orders_Id
+WHERE o.Users_Id = $1;
+`,[userId]
         );
         return { error: false, message: "Returned items fetched", data: result.rows };
     } catch (err) {
         return { error: true, message: "Error fetching returned items", data: err };
     }
 };
+}

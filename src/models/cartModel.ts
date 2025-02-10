@@ -1,7 +1,14 @@
 import pool from '../config/db';
+interface ServiceResponse<T = any> {
+    error: boolean;
+    message: string;
+    data: T | null;
+}
+
+export class cartModel{
 
 // Get cart ID by user
-export const getCartIdByUser = async (userId: number) => {
+async getCartIdByUser (userId: number)  {
     try {
         const result = await pool.query(
             `SELECT carts_id FROM carts WHERE users_id = $1`,
@@ -17,7 +24,7 @@ export const getCartIdByUser = async (userId: number) => {
 };
 
 // Create a cart for a user
-export const createCartForUser = async (userId: number) => {
+async createCartForUser (userId: number)  {
     try {
         const result = await pool.query(
             `INSERT INTO carts (users_id) VALUES ($1) RETURNING carts_id`,
@@ -30,7 +37,7 @@ export const createCartForUser = async (userId: number) => {
 };
 
 // Get all cart items for a cart
-export const getCartItemsByCartId = async (cartId: number) => {
+async getCartItemsByCartId (cartId: number)  {
     try {
         const result = await pool.query(
             `SELECT * FROM cart_items WHERE carts_id = $1`,
@@ -42,8 +49,33 @@ export const getCartItemsByCartId = async (cartId: number) => {
     }
 };
 
+
+async getCartDetails  (userId: number): Promise<ServiceResponse<any>> {
+    try {
+        let cartResult = await this.getCartIdByUser(userId);
+
+        if (cartResult.error) {
+            cartResult = await this.createCartForUser(userId);
+            if (cartResult.error) { 
+                return cartResult; 
+            }
+        }
+        const itemsResult = await this.getCartItemsByCartId(cartResult.data);
+        if(itemsResult.error) return itemsResult; 
+        return {
+            error: false,
+            message: "Cart details retrieved",
+            data: itemsResult.data
+        };
+    } catch (error) {
+        console.error("Error in getCartDetails model:", error);
+        return { error: true, message: "Error fetching cart", data: null };
+    }
+};
+
+
 // Add an item to the cart
-export const addItemToCartDB = async (cartId: number, productId: number, quantity: number) => {
+async addItemToCartDB  (cartId: number, productId: number, quantity: number)  {
     try {
         const result = await pool.query(
             `INSERT INTO cart_items (carts_id, products_id, quantity) 
@@ -57,7 +89,7 @@ export const addItemToCartDB = async (cartId: number, productId: number, quantit
 };
 
 // Update an item in the cart
-export const updateCartItemDB = async (userId: number, itemId: number, quantity: number) => {
+async updateCartItemDB (userId: number, itemId: number, quantity: number)  {
     try {
         const result = await pool.query(
             `UPDATE cart_items SET quantity = $1 
@@ -75,7 +107,7 @@ export const updateCartItemDB = async (userId: number, itemId: number, quantity:
 };
 
 // Remove an item from the cart
-export const removeCartItemDB = async (userId: number, itemId: number) => {
+async removeCartItemDB  (userId: number, itemId: number) {
     try {
         const result = await pool.query(
             `DELETE FROM cart_items WHERE cart_items_id = $1 
@@ -92,7 +124,7 @@ export const removeCartItemDB = async (userId: number, itemId: number) => {
 };
 
 // Clear the user's cart
-export const clearCartDB = async (userId: number) => {
+async clearCartDB  (userId: number){
     try {
         await pool.query(
             `DELETE FROM cart_items WHERE carts_id = (SELECT carts_id FROM carts WHERE users_id = $1)`,
@@ -103,3 +135,28 @@ export const clearCartDB = async (userId: number) => {
         return { error: true, message: "Database error clearing cart", data: error };
     }
 };
+
+
+async addItemToCart (userId: number, productId: number, quantity: number): Promise<ServiceResponse>  {
+    try {
+        if (!productId || !quantity || quantity <= 0) {
+            return { error: true, message: "Product ID and valid quantity are required.", data: null };
+        }
+        let cartResult = await this.getCartIdByUser(userId);
+        if (cartResult.error) {
+            cartResult = await this.createCartForUser(userId);
+            if (cartResult.error) {
+                return cartResult; 
+            }
+        }
+
+        const cartItemResult = await this.addItemToCartDB(cartResult.data, productId, quantity);
+        return cartItemResult; 
+
+    } catch (error) {
+        console.error("Error in addItemToCart model:", error);
+        return { error: true, message: "Error adding item to cart", data: null };
+    }
+};
+
+}

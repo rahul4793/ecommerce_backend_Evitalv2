@@ -13,8 +13,11 @@ interface ServiceResponse {
     data: Feedback | Feedback[] | null | unknown;
 }
 
+
+export class feedbackModel {
+
 // Get feedbacks for a product
-export const getFeedbacks = async (id: number): Promise<ServiceResponse> => {
+async getFeedbacks  (id: number): Promise<ServiceResponse>  {
     try {
         const result = await pool.query(
             `SELECT f.ratings, u.first_name, u.last_name, f.created_at
@@ -39,7 +42,7 @@ export const getFeedbacks = async (id: number): Promise<ServiceResponse> => {
 };
 
 // Check if user has purchased a product
-export const hasUserPurchasedProduct = async (userId: number, productId: number): Promise<ServiceResponse> => {
+async hasUserPurchasedProduct  (userId: number, productId: number) {
     try {
         const result = await pool.query(
             `SELECT 1 FROM order_items oi
@@ -63,17 +66,15 @@ export const hasUserPurchasedProduct = async (userId: number, productId: number)
 };
 
 // Add feedback and update the product's average rating
-export const addFeedback = async (ratings: number, products_id: number, users_id: number): Promise<ServiceResponse> => {
+async addFeedback  (ratings: number, products_id: number, users_id: number) {
     const client = await pool.connect();
     try {
         await client.query("BEGIN");
-
-        const result = await client.query(
+              const result = await client.query(
             `INSERT INTO feedback (ratings, products_id, users_id, created_at)
              VALUES ($1, $2, $3, NOW()) RETURNING *`,
             [ratings, products_id, users_id]
         );
-
         await client.query(
             `UPDATE products 
              SET average_rating = (
@@ -82,9 +83,7 @@ export const addFeedback = async (ratings: number, products_id: number, users_id
              WHERE products_id = $1`,
             [products_id]
         );
-
         await client.query("COMMIT");
-
         return {
             error: false,
             message: "Feedback added successfully",
@@ -102,3 +101,5 @@ export const addFeedback = async (ratings: number, products_id: number, users_id
         client.release();
     }
 };
+
+}

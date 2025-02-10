@@ -1,195 +1,74 @@
 import { Request, Response } from 'express';
-import {
-    createOrderDB, getUserOrdersDB, getAllOrdersDB, updateOrderStatusDB, cancelOrderDB,
-    addItemToOrderDB, calculateOrderTotal, getUserAddressById, getUserDefaultAddress,
-    addItemsToOrderDB,
-    getProductDetails,
-    updateProductStock
-} from '../models/orderModel';
-import { clearCartDB, getCartIdByUser, getCartItemsByCartId } from '../models/cartModel';
+import { OrderModel } from '../models/orderModel';
+import { successResponse, errorResponse } from '../helpers/responseHelper';
+
+const objOrder = new OrderModel();
 
 export const createOrder = async (req: Request, res: Response): Promise<void> => {
     try {
         const userId = (req as any).user?.userId;
-        const { discount_id, address_id } = req.body;
-
-        let selectedAddress = address_id
-            ? await getUserAddressById(userId, address_id)
-            : await getUserDefaultAddress(userId);
-
-        if (!selectedAddress) {
-            res.status(400).json({ message: "No valid address found." });
-            return;
+        const { discount_id, address_id, cart_items } = req.body; // cart_items is an array of cart_items_id
+         console.log(cart_items)
+        if (!cart_items || !Array.isArray(cart_items) || cart_items.length === 0) {
+            res.status(400).json(errorResponse("No cart items provided for order",null));
         }
-
-        // cart id details in structure
-        const cartResult = await getCartIdByUser(userId);
-
-        if (cartResult.error || !cartResult.data) {
-            res.status(400).json({ message: "Cart not found or error fetching cart." });
-            return;
-        }
-
-        const cartId = cartResult.data; // cart id stored
-
-        // Fetch Cart Items
-        const cartItemsResult = await getCartItemsByCartId(cartId);
-
-        // cartItemsResult.data is always an array and not empty
-        const cartItems = Array.isArray(cartItemsResult.data) ? cartItemsResult.data : [];
-
-        if (cartItems.length === 0) {
-            res.status(400).json({ message: "Cart is empty. Add items before placing an order." });
-            return;
-        }
-
-        // calculate total price
-        let totalAmount = 0;
-        const orderItems = [];
-
-        for (const item of cartItems) {
-            const product = await getProductDetails(item.products_id);
-            if (!product) {
-                res.status(400).json({ error:true,message: `Product ID ${item.products_id} not found.`,data:product.data });
-                return;
-            }
-
-            if (product.stock_quantity < item.quantity) {
-                res.status(400).json({ error:true,message: `Not enough stock for ${product.product_name}`,data:null });
-                return;
-            }
-
-            const itemTotal = product.price * item.quantity;
-            totalAmount += itemTotal;
-
-            // order item entry
-            orderItems.push({
-                product_id: item.products_id,
-                product_name: product.product_name,
-                price: product.price,
-                quantity: item.quantity,
-                total_amount: itemTotal,
-            });
-        }
-
-        // applying discount
-        const { discountAmount, netAmount, shippingAmount } = await calculateOrderTotal(totalAmount, discount_id);
-        // Order Entry
-        const newOrder = await createOrderDB(userId, selectedAddress.addresses_id, discount_id, totalAmount, discountAmount, netAmount, shippingAmount);
-
-        if (!newOrder) {
-            res.status(500).json({ message: "Failed to create order." });
-            return;
-        }
-
-        await addItemsToOrderDB(newOrder.orders_id, orderItems);
-
-        for (const item of orderItems) {
-            await updateProductStock(item.product_id, item.quantity);
-        }
-
-        await clearCartDB(userId);
-
-        res.status(201).json({ message: "Order placed successfully!", order: newOrder, items: orderItems });
+        const orderResult = await objOrder.createOrder(userId, discount_id, address_id, cart_items);
+        res.status(orderResult.error ? 400 : 201).json(orderResult);
     } catch (err) {
         console.error("Error in createOrder:", err);
-        res.status(500).json({ message: "Error creating order", error: err });
+        res.status(500).json(errorResponse("Error creating order",null));
     }
 };
 
-
+// Get User Orders
 export const getUserOrders = async (req: Request, res: Response) => {
-    try {
-        const userId = (req as any).user?.userId;
-        const orders = await getUserOrdersDB(userId);
-        res.status(200).json({ orders });
-    } catch (err) {
-        res.status(500).json({ message: "Error fetching orders", error: err });
-    }
+    const userId = (req as any).user?.userId;
+    const orders = await objOrder.getUserOrders(userId);
+    res.status(200).json(successResponse("Orders fetched",orders.data ));
 };
 
+//Get All Orders 
 export const getAllOrders = async (req: Request, res: Response) => {
-    try {
-        const orders = await getAllOrdersDB();
-        res.status(200).json({ orders });
-    } catch (err) {
-        res.status(500).json({ message: "Error fetching orders", error: err });
-    }
+    const orders = await objOrder.getAllOrders();
+    res.status(200).json(successResponse("All orders fetched",orders.data ));
 };
 
+// Only admin can change order status
 export const updateOrderStatus = async (req: Request, res: Response): Promise<void> => {
     try {
         const { order_id, status } = req.body;
-
-        if (!order_id || typeof order_id !== 'number') {
-            res.status(400).json({ message: "Invalid order_id" });
-            return;
-        }
-
-        if (![1, 2, 3, 4].includes(status)) {
-            res.status(400).json({ message: "Invalid status value." });
-            return;
-        }
-
-        const updatedOrder = await updateOrderStatusDB(order_id, status);
-        if (!updatedOrder) {
-            res.status(404).json({ message: "Order not found or could not update status." });
-            return;
-        }
-
-        res.status(200).json({ message: "Order status updated", updatedOrder });
+        const result = await objOrder.updateOrderStatusDB(order_id, status);
+        res.status(result.error ? 400 : 200).json(result);
     } catch (err) {
-        res.status(500).json({ message: "Error updating order status", error: err });
+        res.status(500).json(errorResponse("Error updating order status",err));
     }
 };
 
+// Cancel Order (Admin/User)
 export const cancelOrder = async (req: Request, res: Response): Promise<void> => {
     try {
         const userId = (req as any).user?.userId;
         const isAdmin = (req as any).user?.role === 1;
         const { order_id } = req.body;
 
-        if (!order_id || typeof order_id !== 'number') {
-            res.status(400).json({ message: "Invalid order_id" });
-            return;
-        }
-
-        const success = await cancelOrderDB(userId, order_id, isAdmin);
-        if (!success) {
-            res.status(400).json({ message: "Cannot cancel this order." });
-            return;
-        }
-        res.status(200).json({ message: "Order canceled successfully" });
+        const result = await objOrder.cancelOrderDB(userId, order_id, isAdmin);
+        res.status(result.error ? 400 : 200).json(result);
+        
     } catch (err) {
-        res.status(500).json({ message: "Error canceling order", error: err });
+        res.status(500).json(errorResponse("Error canceling order",err));
     }
 };
 
-
-
-
-import { getOrderDetailsById } from '../models/orderModel';
-
+// GET users order details
 export const getOrderDetailsController = async (req: Request, res: Response): Promise<void> => {
     try {
-        const userId = (req as any).user?.userId; 
+        const userId = (req as any).user?.userId;
         const { orders_id } = req.body;
-
-        if (!orders_id || typeof orders_id !== 'number') {
-            res.status(400).json({ error: true, message: "Invalid or missing order_id", data: null });
-            return;
-        }
-
-        const orderDetails = await getOrderDetailsById(userId, orders_id);
-
-        if (orderDetails.error) {
-            res.status(404).json(orderDetails);
-            return;
-        }
-
-        res.status(200).json(orderDetails);
+        const result = await objOrder.getOrderDetailsById(userId, orders_id);
+        res.status(result.error ? 400 : 200).json(result);
     } catch (err) {
         console.error("Error fetching order details:", err);
-        res.status(500).json({ error: true, message: "Error fetching order details", data: err });
+        res.status(500).json(errorResponse("ErrError fetching order detailsr",err));
     }
 };
+

@@ -1,69 +1,42 @@
 import pool from '../config/db';
+import { successResponse, errorResponse, ServiceResponse } from '../helpers/responseHelper';
 
-
-export const getAddressesFromDB = async (userId: number) => {
+export class addressModel {
+    async getAddressesFromDB (userId: number) {
     try {
         const result = await pool.query(
             `SELECT * FROM addresses WHERE users_id = $1 ORDER BY is_default DESC, created_at DESC`,
             [userId]
         );
         if (result.rows.length === 0) {
-            return {
-                error: true,
-                message: "No addresses found for the given user ID",
-                data: null,  
-            };
+        return errorResponse("No addresses found for the given user ID", null);
         }
-        return {
-            error: false,
-            message: "Addresses retrieved successfully",
-            data: result.rows,
-        };
+        return successResponse("Addresses retrieved successfully", result.rows);
     } catch (error) {
-        return {
-            error: true,
-            message: "Database error while fetching addresses",
-            data: error,
-        };
+        return errorResponse("Database error while fetching addresses", error);
     }
 };
 
 
 
-export const getAddressesFromDBbyID = async (userId: number) => {
-    return await getAddressesFromDB(userId);
+async getAddressesFromDBbyID  (userId: number) {
+    return await this.getAddressesFromDB(userId);
 };
 
-export const addAddressToDB = async (userId: number, fullAddress: string, state: string, city: string, zipCode: string) => {
+async addAddressToDB  (userId: number, fullAddress: string, state: string, city: string, zipCode: string)  {
     try {
         const result = await pool.query(
             `INSERT INTO addresses (users_id, full_address, state, city, zip_code) 
              VALUES ($1, $2, $3, $4, $5) RETURNING *`,
             [userId, fullAddress, state, city, zipCode]
         );
-        return { error: false, message: "Address added successfully", data: result.rows[0] };
+        return errorResponse("Address added successfully", result.rows[0]);
     } catch (error) {
-        return { error: true, message: "Database error while adding address", data: error };
+        return errorResponse("Database error while adding address", error);
     }
 };
 
-// export const updateAddressInDB = async (userId: number, addressId: number, fullAddress: string, state: string, city: string, zipCode: string) => {
-//     try {
-//         const result = await pool.query(
-//             `UPDATE addresses 
-//              SET full_address = $1, state = $2, city = $3, zip_code = $4, updated_at = CURRENT_TIMESTAMP 
-//              WHERE addresses_id = $5 AND users_id = $6 RETURNING *`,
-//             [fullAddress, state, city, zipCode, addressId, userId]
-//         );
-//         return result.rows.length > 0
-//             ? { error: false, message: "Address updated successfully", data: result.rows[0] }
-//             : { error: true, message: "Address not found or update failed", data: null };
-//     } catch (error) {
-//         return { error: true, message: "Database error while updating address", data: error };
-//     }
-// };
-
-export const updateAddressInDB = async (userId: number, addressId: number, updateData: any) => {
+async updateAddressInDB  (userId: number, addressId: number, updateData: any)  {
     try {
         const fields = [];
         const values = [];
@@ -78,7 +51,7 @@ export const updateAddressInDB = async (userId: number, addressId: number, updat
         }
 
         if (fields.length === 0) {
-            return { error: true, message: "No fields provided for update", data: null };
+            return errorResponse("No fields provided for update", null);
         }
 
         fields.push(`updated_at = CURRENT_TIMESTAMP`);
@@ -95,11 +68,11 @@ export const updateAddressInDB = async (userId: number, addressId: number, updat
             ? { error: false, message: "Address updated successfully", data: result.rows[0] }
             : { error: true, message: "Address not found or update failed", data: null };
     } catch (error) {
-        return { error: true, message: "Database error while updating address", data: error };
+        return errorResponse("Database error while updating address", error);
     }
 };
 
-export const deleteAddressFromDB = async (userId: number, addressId: number) => {
+async deleteAddressFromDB  (userId: number, addressId: number)  {
     try {
         const result = await pool.query(
             `DELETE FROM addresses WHERE addresses_id = $1 AND users_id = $2 RETURNING *`,
@@ -109,18 +82,19 @@ export const deleteAddressFromDB = async (userId: number, addressId: number) => 
             ? { error: false, message: "Address deleted successfully", data: null }
             : { error: true, message: "Address not found or already deleted", data: null };
     } catch (error) {
-        return { error: true, message: "Database error while deleting address", data: error };
+        return errorResponse("Database error while deleting address", error);
     }
 };
 
-export const setDefaultAddressInDB = async (userId: number, addressId: number) => {
+async setDefaultAddressInDB  (userId: number, addressId: number)  {
     try {
         await pool.query(`UPDATE addresses SET is_default = FALSE WHERE users_id = $1`, [userId]);
         await pool.query(`UPDATE addresses SET is_default = TRUE WHERE addresses_id = $1 AND users_id = $2`, [addressId, userId]);
         await pool.query(`UPDATE users SET default_address_id = $1 WHERE users_id = $2`, [addressId, userId]);
+        return successResponse("Default address updated successfully", null);
 
-        return { error: false, message: "Default address updated successfully", data: null };
     } catch (error) {
-        return { error: true, message: "Database error while setting default address", data: error };
+        return errorResponse("Database error while setting default address", error);
     }
 };
+}
