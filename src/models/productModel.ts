@@ -1,14 +1,12 @@
 import pool from '../config/db';
+import { successResponse, errorResponse } from '../helpers/responseHelper';
 
 interface ServiceResponse {
     error: boolean;
     message: string;
     data: any;
 }
-
-
  export class productModel {
-
 
 async createProduct  (
     product_name: string,
@@ -26,13 +24,11 @@ async createProduct  (
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
             [product_name, url_slug, category_id, description, price, min_stock_quantity, stock_quantity, status]
         );
-
-        return { error: false, message: "Product created successfully", data: result.rows[0] };
+        return successResponse("Product created successfully", result.rows[0] );
     } catch (err) {
         return { error: true, message: "Error creating product", data: err };
     }
 };
-
 
 async getAllProducts  (
     page: number = 1,
@@ -86,10 +82,9 @@ async getAllProducts  (
         params.push(limit, offset);
 
         const result = await pool.query(query, params);
-
-        return { error: false, message: "Products retrieved successfully", data: result.rows };
+        return successResponse("Products retrieved successfully", result.rows );
     } catch (err) {
-        return { error: true, message: "Error fetching products", data: err };
+        return errorResponse("Error fetching products", err );
     }
 };
 
@@ -97,11 +92,11 @@ async getProductById  (id: number): Promise<ServiceResponse>  {
     try {
         const result = await pool.query(`SELECT * FROM products WHERE products_id = $1`, [id]);
         if (result.rows.length === 0) {
-            return { error: true, message: "Product not found", data: null };
+            return errorResponse("Product not found", null );
         }
-        return { error: false, message: "Product retrieved successfully", data: result.rows[0] };
+        return successResponse("Product retrieved successfully", result.rows[0] );
     } catch (err) {
-        return { error: true, message: "Error fetching product", data: err };
+        return errorResponse("Error fetching product", err );
     }
 };
 
@@ -118,9 +113,8 @@ async updateProduct  (id: number, updateData: any): Promise<ServiceResponse>  {
                 index++;
             }
         }
-
         if (fields.length === 0) {
-            return { error: true, message: "No fields provided for update", data: null };
+            return errorResponse("No fields provided for update", null );
         }
         fields.push(`updated_at = NOW()`);
         const query = `
@@ -134,7 +128,7 @@ async updateProduct  (id: number, updateData: any): Promise<ServiceResponse>  {
             ? { error: false, message: "Product updated successfully", data: result.rows[0] }
             : { error: true, message: "Product not found or update failed", data: null };
     } catch (err) {
-        return { error: true, message: "Error updating product", data: err };
+        return errorResponse("Error updating product", err );
     }
 };
 
@@ -142,11 +136,11 @@ async deleteProduct  (id: number): Promise<ServiceResponse>  {
     try {
         const result = await pool.query(`DELETE FROM products WHERE products_id = $1 RETURNING *`, [id]);
         if (result.rows.length === 0) {
-            return { error: true, message: "Product not found", data: null };
+            return errorResponse("Product not found", null );
         }
-        return { error: false, message: "Product deleted successfully", data: result.rows[0] };
+        return successResponse("Product deleted successfully", result.rows[0] );
     } catch (err) {
-        return { error: true, message: "Error deleting product", data: err };
+        return errorResponse("Error deleting product", err );
     }
 };
 
@@ -156,9 +150,9 @@ async getProductByCategory (id: number): Promise<ServiceResponse> {
             `SELECT * FROM products p JOIN categories c ON p.category_id = c.categories_id WHERE p.category_id = $1`,
             [id]
         );
-        return { error: false, message: "Products fetched by category", data: result.rows };
+        return successResponse("Products fetched by category", result.rows );
     } catch (err) {
-        return { error: true, message: "Error fetching products by category", data: err };
+        return errorResponse("Error fetching products by category", err );
     }
 };
 

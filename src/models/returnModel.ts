@@ -1,14 +1,12 @@
 import pool from '../config/db';
+import { successResponse, errorResponse } from '../helpers/responseHelper';
 
 interface ServiceResponse {
     error: boolean;
     message: string;
     data: any;
 }
-
-
 export class returnModel {
-
 
 // Check if user has ordered this product and order is in status 1 meaning placed
 async checkUserOrderStatus (userId: number, orderItemId: number) {
@@ -29,9 +27,9 @@ async requestReturn  (orderItemId: number, returnReason: string): Promise<Servic
              VALUES ($1, $2, 1, NOW(), NOW()) RETURNING *`,
             [orderItemId, returnReason]
         );
-        return { error: false, message: "Return request placed", data: result.rows[0] };
+        return errorResponse("Return request placed", result.rows[0] );
     } catch (err) {
-        return { error: true, message: "Error placing return request", data: err };
+        return errorResponse("Error placing return request", err );
     }
 };
 
@@ -39,16 +37,12 @@ async processReturnRequest  (userId: number, orderItemId: number, quantity: numb
     try {
         const orderValid = await this.checkUserOrderStatus(userId, orderItemId);
         if (!orderValid) {
-            return { error: true, message: "You can only return items from your placed orders.", data: null };
+            return errorResponse("You can only return items from your placed orders", null );
         }
         const orderedQuantity = await this.getOrderedQuantity(orderItemId);
         const alreadyReturnedQuantity = await this.getReturnedQuantity(orderItemId);
         if (alreadyReturnedQuantity + quantity > orderedQuantity) {
-            return {
-                error: true,
-                message: `You have already returned ${alreadyReturnedQuantity} items. You can only return ${orderedQuantity - alreadyReturnedQuantity} more.`,
-                data: null
-            };
+            return successResponse(`You have already returned ${alreadyReturnedQuantity} items. You can only return ${orderedQuantity - alreadyReturnedQuantity} more.`, null );
         }
         const returnRequest = await this.requestReturn(orderItemId, returnReason);
         if (returnRequest.error) {
@@ -58,17 +52,12 @@ async processReturnRequest  (userId: number, orderItemId: number, quantity: numb
         if (returnItemDetails.error) {
             return returnItemDetails; 
         }
-        return {
-            error: false,
-            message: "Return request placed successfully, waiting for admin approval.",
-            data: returnRequest.data
-        };
+        return successResponse("Return request placed successfully, waiting for admin approval", returnRequest.data );
     } catch (error) {
         console.error("Error processing return request in model:", error);
-        return { error: true, message: "Error processing return", data: null };
+        return errorResponse("Error processing return", null );
     }
 };
-
 
 // Insert return details into return_item_details
 async addReturnItemDetails  (returnItemId: number, orderItemId: number, quantity: number): Promise<ServiceResponse> {
@@ -79,9 +68,9 @@ async addReturnItemDetails  (returnItemId: number, orderItemId: number, quantity
              FROM order_items WHERE order_items_id = $2 RETURNING *`,
             [returnItemId, orderItemId, quantity]
         );
-        return { error: false, message: "Return item details added", data: result.rows[0] };
+        return successResponse("Return item details added", result.rows[0] );
     } catch (err) {
-        return { error: true, message: "Error adding return item details", data: err };
+        return errorResponse("Error adding return item details", err );
     }
 };
 
@@ -124,39 +113,24 @@ async calculateRefundAmount  (returnItemId: number): Promise<number>{
     }
 };
 
-
-
-
 async processReturnApproval  (returnItemId: number): Promise<ServiceResponse> {
     try {
         const refundAmount = await this.calculateRefundAmount(returnItemId);
-        if (refundAmount === 0) { // Or if (!refundAmount) if you want to treat 0 as an error too
-            return { error: true, message: "Refund calculation failed.", data: null };
+        if (refundAmount === 0) { 
+            return errorResponse("Refund calculation failed", null );
         }
-
         const isApproved = await this.approveReturnRequest(returnItemId, refundAmount);
         if (!isApproved) {
-            return { error: true, message: "Return approval failed.", data: null };
+            return errorResponse("Return approval failed", null );
         }
-
         await this.updateStockAfterReturn(returnItemId);
-
-        return {
-            error: false,
-            message: "Return request approved. Refund processed.",
-            data: { refundAmount }
-        };
+        return successResponse("Return request approved. Refund processed", null );
 
     } catch (error) {
         console.error("Error processing return approval in model:", error);
-        return { error: true, message: "Error approving return", data: null };
+        return successResponse("Return request approved. Refund processed", null );
     }
-};
-
-
-
-
-
+};      
 
 // Update stock after return approval
 async updateStockAfterReturn (returnItemId: number): Promise<void> {

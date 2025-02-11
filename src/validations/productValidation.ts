@@ -22,3 +22,8 @@ export const productValidating = Joi.object({
         stock_quantity: Joi.number().integer().min(0),
         status: Joi.number().valid(0, 1).default(1)
         });
+
+
+        export const productSearchvalid =  Joi.object({
+            
+        })

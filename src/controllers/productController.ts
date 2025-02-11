@@ -1,7 +1,9 @@
 
 import { Request, Response } from 'express';
 import { productModel} from '../models/productModel'
+import { helper } from '../helpers/responseHelper';
 
+const objHelper  =  new helper();
 const productObj = new productModel();
 export const createProductController = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -15,9 +17,9 @@ export const createProductController = async (req: Request, res: Response): Prom
             req.body.stock_quantity,
             req.body.status || 1 
         );
-        res.status(201).json({ error: false, message: "Product created successfully", data: newProduct.data });
+        objHelper.success(res, newProduct.message, newProduct.data);
     } catch (err) {
-        res.status(500).json({ error: true, message: "Error creating product", data: err });
+        objHelper.error(res, 500, "Server Error");
     }
 };
 
@@ -34,13 +36,9 @@ export const getProductsController = async (req: Request, res: Response): Promis
             categoryId 
         } = req.body;
         const products = await productObj.getAllProducts(page, priceOrder, searchQuery, minPrice, maxPrice, minRating, maxRating, categoryId);
-        res.status(200).json({
-            error: false,
-            message: "Products fetched successfully",
-            data: products.data
-        });
+        objHelper.success(res, products.message, products.data);
     } catch (err) {
-        res.status(500).json({ error: true, message: "Error fetching products", data: err });
+        objHelper.error(res, 500, "Server Error");
     }
 };
 
@@ -48,49 +46,50 @@ export const getProductsController = async (req: Request, res: Response): Promis
 export const getProductController = async (req: Request, res: Response): Promise<void> => {
     try {
         const product = await productObj.getProductById(Number(req.params.id));
-        if (!product) {
-             res.status(404).json({ error: true, message: "Product not found", data: null }); return
+        if(product.error){
+            objHelper.error(res, 400, product.message); 
         }
-        res.status(200).json({ error: false, message: "Product retrieved successfully", data: product.data });
+        objHelper.success(res, product.message, product.data);
     } catch (err) {
-        res.status(500).json({ error: true, message: "Error fetching product", data: err });
+        objHelper.error(res, 500, "Server Error");
     }
 };
+
+
 
 export const updateProductController = async (req: Request, res: Response): Promise<void> => {
     try {
         const productId = Number(req.params.id);
-        if (Object.keys(req.body).length === 0) {
-            res.status(400).json({ error: true, message: "No fields provided for update", data: null });
-            return;
-        }
         const updatedProduct = await productObj.updateProduct(productId, req.body);
-        res.status(updatedProduct.error ? 500 : 200).json(updatedProduct);
+        if(updatedProduct.error){
+            objHelper.error(res, 400, updatedProduct.message);
+        }
+        objHelper.success(res, updatedProduct.message, updatedProduct.data);
     } catch (err) {
-        res.status(500).json({ error: true, message: "Error updating product", data: err });
+        objHelper.error(res, 500, "Server Error");
     }
 };
+
 
 export const deleteProductController = async (req: Request, res: Response): Promise<void> => {
     try {
         const deletedProduct = await productObj.deleteProduct(Number(req.params.id));
-        if (!deletedProduct) {
-             res.status(404).json({ error: true, message: "Product not found", data: null }); return
+        if(deletedProduct.error){
+            objHelper.error(res, 400, deletedProduct.message);
         }
-        res.status(200).json({ error: false, message: "Product deleted successfully", data: deletedProduct.data });
+        objHelper.success(res, deletedProduct.message, deletedProduct.data);
     } catch (err) {
-        res.status(500).json({ error: true, message: "Error deleting product", data: err });
+        objHelper.error(res, 500, "Server Error");
     }
 };
-
 export const getProductByCategoryController = async (req: Request, res: Response): Promise<void> => {
     try {
         const categoryProducts = await productObj.getProductByCategory(Number(req.params.id));
-        if (categoryProducts.data.length === 0) {
-             res.status(404).json({ error: true, message: "No products found in this category", data: null });return
+        if(categoryProducts.error){
+            objHelper.error(res, 400, categoryProducts.message);
         }
-        res.status(200).json({ error: false, message: "Products by category fetched successfully", data: categoryProducts.data });
+        objHelper.success(res, categoryProducts.message, categoryProducts.data);
     } catch (err) {
-        res.status(500).json({ error: true, message: "Error fetching products by category", data: err });
+        objHelper.error(res, 500, "Server Error");
     }
 };

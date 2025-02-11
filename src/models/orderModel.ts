@@ -1,7 +1,6 @@
 import pool from '../config/db';
 import { successResponse, errorResponse, ServiceResponse } from '../helpers/responseHelper';
 
-
 export class OrderModel {
     // Get User Address (Default or Selected)
     async getUserAddress(userId: number, addressId?: number) {
@@ -35,21 +34,19 @@ export class OrderModel {
         const client = await pool.connect();
         try {
             await client.query("BEGIN");
-
             // Get User Address (either provided or default)
             const selectedAddress = addressId
                 ? await this.getUserAddress(userId, addressId)
                 : await this.getUserAddress(userId);
             if (!selectedAddress) {
                 await client.query("ROLLBACK");
-                return { error: true, message: "No valid address found", data: null };
+                return errorResponse("No valid address found", null );
             }
-
             // Fetch selected cart items
             const selectedCartItems = await this.getSelectedCartItems(userId, cartItems);
             if (!selectedCartItems.length) {
                 await client.query("ROLLBACK");
-                return { error: true, message: "No valid cart items found.", data: null };
+                return errorResponse("No valid cart items found", null );
             }
 
             let totalAmount = 0;
@@ -62,7 +59,7 @@ export class OrderModel {
                 );
                 if (!stockCheck.rows.length || stockCheck.rows[0].stock_quantity < item.quantity) {
                     await client.query("ROLLBACK");
-                    return { error: true, message: `Stock unavailable for ${item.product_name}`, data: null };
+                    return errorResponse( `Stock unavailable for ${item.product_name}`, null );
                 }
 
                 const itemTotal = item.price * item.quantity;
@@ -101,11 +98,10 @@ export class OrderModel {
             await this.removeSelectedCartItems(client, cartItems, userId);
 
             await client.query("COMMIT");
-            return { error: false, message: "Order placed successfully!", order: newOrder, items: orderItems };
+            return { error: false, message: "Order placed successfully!", data:{order: newOrder, items: orderItems }};
         } catch (error) {
             await client.query("ROLLBACK");
             return errorResponse("Error creating order", error);
-
         } finally {
             client.release();
         }
@@ -137,7 +133,6 @@ export class OrderModel {
     // Calculate Order Total with Discount
     async calculateOrderTotal(totalAmount: number, discountId: number | null) {
         let discountAmount = 0, shippingAmount = 5.00;
-
         if (discountId) {
             const discount = await pool.query(`SELECT discount_type, discount_value FROM discounts WHERE discounts_id = $1`, [discountId]);
             if (discount.rowCount && discount.rows.length > 0) {  
@@ -145,7 +140,6 @@ export class OrderModel {
                 discountAmount = discount_type === 1 ? discount_value : (totalAmount * discount_value) / 100;
             }
         }
-
         return { totalAmount, discountAmount, netAmount: totalAmount - discountAmount, shippingAmount };
     }
 // Get all orders for an admin
@@ -161,7 +155,6 @@ export class OrderModel {
 
         } catch (error) {
             return errorResponse("Error fetching all orders", error);
-
         }
     }
 
@@ -179,9 +172,9 @@ export class OrderModel {
             return successResponse("User orders fetched successfully", result.rows);
         } catch (error) {
             return errorResponse("Error fetching user orders", error);
-
         }
     }
+    
     async updateOrderStatusDB(orderId: number, status: number) {
         const validStatuses = [1, 2, 3, 4, 5]; // Allow "Canceled" status
 
@@ -199,7 +192,6 @@ export class OrderModel {
             }
             : { error: true, message: "Order not found or could not update status", data: null };
     }
-
     // Cancel Order (Restore Stock if Order is Canceled)
     async cancelOrderDB(userId: number, orderId: number, isAdmin: boolean) {
         const client = await pool.connect();
@@ -220,21 +212,17 @@ export class OrderModel {
                 return errorResponse("Order not found or cannot be canceled",null);
 
             }
-
             // Update order status to "Canceled"
             const updateResult = await client.query(
                 `UPDATE orders SET status = 5, updated_at = NOW() WHERE orders_id = $1 RETURNING *`,
                 [orderId]
             );
-
             // Restore stock for canceled items
             await Promise.all(orderItems.rows.map(item => 
                 this.restoreProductStock(client, item.products_id, item.quantity)
             ));
-
             await client.query("COMMIT");
             return successResponse("Order canceled successfully",updateResult.rows[0]);
-
         } catch (error) {
             await client.query("ROLLBACK");
             return errorResponse("Error canceling order",error);
@@ -256,13 +244,10 @@ export class OrderModel {
     async getOrderDetailsById(userId: number, orderId: number) {
         if (!orderId || typeof orderId !== 'number') {
             return errorResponse("Invalid or missing order_id",null);
-
         }
-
         try {
             const client = await pool.connect();
             await client.query("BEGIN");
-
             // Fetch Order Details
             const orderResult = await client.query(
                 `SELECT o.orders_id, o.total_amount, o.discount_amount, o.net_amount, o.shipping_amount, 
@@ -272,15 +257,12 @@ export class OrderModel {
                  WHERE o.orders_id = $1 AND o.users_id = $2`,
                 [orderId, userId]
             );
-
             if (orderResult.rowCount === 0) {
                 await client.query("ROLLBACK");
                 return errorResponse("Order not found or access denied",null);
 
             }
-
             const orderDetails = orderResult.rows[0];
-
             // Fetch Order Items
             const itemsResult = await client.query(
                 `SELECT oi.order_items_id, oi.products_id, p.product_name, oi.quantity, oi.price, oi.total_amount
@@ -289,16 +271,12 @@ export class OrderModel {
                  WHERE oi.orders_id = $1`,
                 [orderId]
             );
-
             orderDetails.items = itemsResult.rows;
-
             await client.query("COMMIT");
-            return { error: false, message: "Order details fetched successfully", data: orderDetails };
+            return successResponse("Order details fetched successfully",orderDetails);
         } catch (err) {
             console.error("Error fetching order details:", err);
             return errorResponse("Database error",err);
-
-
         }
     }
 }

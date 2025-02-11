@@ -3,22 +3,23 @@ import { OrderModel } from '../models/orderModel';
 import { successResponse, errorResponse } from '../helpers/responseHelper';
 
 const objOrder = new OrderModel();
+import { helper } from '../helpers/responseHelper';
 
+const objHelper  =  new helper();
 export const createOrder = async (req: Request, res: Response): Promise<void> => {
     try {
         const userId = (req as any).user?.userId;
-        const { discount_id, address_id, cart_items } = req.body; // cart_items is an array of cart_items_id
-         console.log(cart_items)
-        if (!cart_items || !Array.isArray(cart_items) || cart_items.length === 0) {
-            res.status(400).json(errorResponse("No cart items provided for order",null));
-        }
+        const { discount_id, address_id, cart_items } = req.body; 
         const orderResult = await objOrder.createOrder(userId, discount_id, address_id, cart_items);
-        res.status(orderResult.error ? 400 : 201).json(orderResult);
+        if(orderResult.error){
+            objHelper.error(res, 400, orderResult.message);
+        }
+        objHelper.success(res, orderResult.message, orderResult.data);
     } catch (err) {
-        console.error("Error in createOrder:", err);
-        res.status(500).json(errorResponse("Error creating order",null));
+        objHelper.error(res, 500, "Server Error");
     }
 };
+
 
 // Get User Orders
 export const getUserOrders = async (req: Request, res: Response) => {
@@ -38,9 +39,12 @@ export const updateOrderStatus = async (req: Request, res: Response): Promise<vo
     try {
         const { order_id, status } = req.body;
         const result = await objOrder.updateOrderStatusDB(order_id, status);
-        res.status(result.error ? 400 : 200).json(result);
+        if(result.error){
+            objHelper.error(res, 400, result.message);
+        }
+        objHelper.success(res, result.message, result.data);
     } catch (err) {
-        res.status(500).json(errorResponse("Error updating order status",err));
+        objHelper.error(res, 500, "Server Error");
     }
 };
 
@@ -52,12 +56,15 @@ export const cancelOrder = async (req: Request, res: Response): Promise<void> =>
         const { order_id } = req.body;
 
         const result = await objOrder.cancelOrderDB(userId, order_id, isAdmin);
-        res.status(result.error ? 400 : 200).json(result);
-        
+        if(result.error){
+            objHelper.error(res, 400, result.message);
+        }
+        objHelper.success(res, result.message, result.data);
     } catch (err) {
-        res.status(500).json(errorResponse("Error canceling order",err));
+        objHelper.error(res, 500, "Server Error");
     }
 };
+
 
 // GET users order details
 export const getOrderDetailsController = async (req: Request, res: Response): Promise<void> => {
@@ -65,10 +72,12 @@ export const getOrderDetailsController = async (req: Request, res: Response): Pr
         const userId = (req as any).user?.userId;
         const { orders_id } = req.body;
         const result = await objOrder.getOrderDetailsById(userId, orders_id);
-        res.status(result.error ? 400 : 200).json(result);
+        if(result.error){
+            objHelper.error(res, 400, result.message);
+        }
+        objHelper.success(res, result.message, result.data);
     } catch (err) {
-        console.error("Error fetching order details:", err);
-        res.status(500).json(errorResponse("ErrError fetching order detailsr",err));
+        objHelper.error(res, 500, "Server Error");
     }
 };
 

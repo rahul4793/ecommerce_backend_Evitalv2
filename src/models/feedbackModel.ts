@@ -1,4 +1,5 @@
 import pool from '../config/db';
+import { successResponse, errorResponse } from '../helpers/responseHelper';
 
 interface Feedback {
     ratings: number;
@@ -12,8 +13,6 @@ interface ServiceResponse {
     message: string;
     data: Feedback | Feedback[] | null | unknown;
 }
-
-
 export class feedbackModel {
 
 // Get feedbacks for a product
@@ -26,18 +25,13 @@ async getFeedbacks  (id: number): Promise<ServiceResponse>  {
              WHERE f.products_id = $1`, 
             [id]
         );
-
         return {
             error: false,
             message: result.rows.length ? "Feedback retrieved successfully" : "No feedback available",
             data: result.rows
         };
     } catch (err) {
-        return {
-            error: true,
-            message: "Error fetching feedbacks",
-            data: err
-        };
+        return errorResponse("Error fetching feedbacks", err);
     }
 };
 
@@ -57,11 +51,7 @@ async hasUserPurchasedProduct  (userId: number, productId: number) {
             data: result.rows.length > 0
         };
     } catch (err) {
-        return {
-            error: true,
-            message: "Error checking if user has purchased the product",
-            data: err
-        };
+        return errorResponse("Error checking if user has purchased the product", err);
     }
 };
 
@@ -84,19 +74,10 @@ async addFeedback  (ratings: number, products_id: number, users_id: number) {
             [products_id]
         );
         await client.query("COMMIT");
-        return {
-            error: false,
-            message: "Feedback added successfully",
-            data: result.rows[0]
-        };
+        return errorResponse("Feedback added successfully", result.rows[0]);
     } catch (err) {
         await client.query("ROLLBACK");
-
-        return {
-            error: true,
-            message: "Error adding feedback",
-            data: err
-        };
+        return errorResponse("Error adding feedback",err);
     } finally {
         client.release();
     }

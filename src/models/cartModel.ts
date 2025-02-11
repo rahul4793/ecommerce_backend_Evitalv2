@@ -4,7 +4,7 @@ interface ServiceResponse<T = any> {
     message: string;
     data: T | null;
 }
-
+import { successResponse, errorResponse } from '../helpers/responseHelper';
 export class cartModel{
 
 // Get cart ID by user
@@ -14,12 +14,11 @@ async getCartIdByUser (userId: number)  {
             `SELECT carts_id FROM carts WHERE users_id = $1`,
             [userId]
         );
-
         return result.rows.length 
             ? { error: false, message: "Cart details",data: result.rows[0].carts_id }
             : { error: true, message: "Database error fetching cart",data: null };
     } catch (error) {
-        return { error: true, message: "Database error fetching cart", data: error };
+        return errorResponse("Database error fetching cart", error);
     }
 };
 
@@ -30,9 +29,9 @@ async createCartForUser (userId: number)  {
             `INSERT INTO carts (users_id) VALUES ($1) RETURNING carts_id`,
             [userId]
         );
-        return { error: false, message: "Cart created", data: result.rows[0].carts_id };
+        return successResponse("Cart created", result.rows[0].carts_id);
     } catch (error) {
-        return { error: true, message: "Database error creating cart", data: error };
+        return errorResponse("Database error creating cart", error);
     }
 };
 
@@ -49,7 +48,6 @@ async getCartItemsByCartId (cartId: number)  {
     }
 };
 
-
 async getCartDetails  (userId: number): Promise<ServiceResponse<any>> {
     try {
         let cartResult = await this.getCartIdByUser(userId);
@@ -62,14 +60,10 @@ async getCartDetails  (userId: number): Promise<ServiceResponse<any>> {
         }
         const itemsResult = await this.getCartItemsByCartId(cartResult.data);
         if(itemsResult.error) return itemsResult; 
-        return {
-            error: false,
-            message: "Cart details retrieved",
-            data: itemsResult.data
-        };
+        return successResponse("Cart details retrieved", itemsResult.data);
     } catch (error) {
         console.error("Error in getCartDetails model:", error);
-        return { error: true, message: "Error fetching cart", data: null };
+        return errorResponse("Error fetching cart", error);
     }
 };
 
@@ -82,9 +76,9 @@ async addItemToCartDB  (cartId: number, productId: number, quantity: number)  {
              VALUES ($1, $2, $3) RETURNING *`,
             [cartId, productId, quantity]
         );
-        return { error: false, message: "Item added to cart", data: result.rows[0] };
+        return successResponse("Item added to cart", result.rows[0] );
     } catch (error) {
-        return { error: true, message: "Database error adding item to cart", data: error };
+        return errorResponse("Database error adding item to cart", error );
     }
 };
 
@@ -102,7 +96,7 @@ async updateCartItemDB (userId: number, itemId: number, quantity: number)  {
             ? { error: false, message: "Cart item updated", data: result.rows[0] }
             : { error: true, message: "Cart item not found or unauthorized", data: null };
     } catch (error) {
-        return { error: true, message: "Database error updating cart item", data: error };
+        return errorResponse("Database error updating cart item", error );
     }
 };
 
@@ -114,12 +108,11 @@ async removeCartItemDB  (userId: number, itemId: number) {
              AND carts_id = (SELECT carts_id FROM carts WHERE users_id = $2) returning *`,
             [itemId, userId]
         );
-
         return result.rows.length > 0
             ? { error: false, message: "Cart item removed", data: null }
             : { error: true, message: "Cart item not found or unauthorized", data: null };
     } catch (error) {
-        return { error: true, message: "Database error removing cart item", data: error };
+        return errorResponse("Database error removing cart item", error );
     }
 };
 
@@ -130,17 +123,16 @@ async clearCartDB  (userId: number){
             `DELETE FROM cart_items WHERE carts_id = (SELECT carts_id FROM carts WHERE users_id = $1)`,
             [userId]
         );
-        return { error: false, message: "Cart cleared successfully", data: null };
+        return successResponse("Cart cleared successfully", null );
     } catch (error) {
-        return { error: true, message: "Database error clearing cart", data: error };
+        return errorResponse("Database error clearing cart", error );
     }
 };
-
 
 async addItemToCart (userId: number, productId: number, quantity: number): Promise<ServiceResponse>  {
     try {
         if (!productId || !quantity || quantity <= 0) {
-            return { error: true, message: "Product ID and valid quantity are required.", data: null };
+            return errorResponse("Product ID and valid quantity are required", null );
         }
         let cartResult = await this.getCartIdByUser(userId);
         if (cartResult.error) {
@@ -154,9 +146,7 @@ async addItemToCart (userId: number, productId: number, quantity: number): Promi
         return cartItemResult; 
 
     } catch (error) {
-        console.error("Error in addItemToCart model:", error);
-        return { error: true, message: "Error adding item to cart", data: null };
+        return errorResponse("Error adding item to cart", null );
     }
 };
-
 }
