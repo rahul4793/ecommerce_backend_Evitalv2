@@ -12,7 +12,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
         const { discount_id, address_id, cart_items } = req.body; 
         const orderResult = await objOrder.createOrder(userId, discount_id, address_id, cart_items);
         if(orderResult.error){
-            objHelper.error(res, 400, orderResult.message);
+            objHelper.error(res, 400, orderResult.message); return
         }
         objHelper.success(res, orderResult.message, orderResult.data);
     } catch (err) {
@@ -40,10 +40,11 @@ export const updateOrderStatus = async (req: Request, res: Response): Promise<vo
         const { order_id, status } = req.body;
         const result = await objOrder.updateOrderStatusDB(order_id, status);
         if(result.error){
-            objHelper.error(res, 400, result.message);
+            objHelper.error(res, 400, result.message); return 
         }
         objHelper.success(res, result.message, result.data);
     } catch (err) {
+        console.log(err)
         objHelper.error(res, 500, "Server Error");
     }
 };

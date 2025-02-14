@@ -12,6 +12,11 @@ import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
 
 dotenv.config();
+import ini from 'ini';
+import fs from 'fs';
+
+const config = ini.parse(fs.readFileSync('en.ini', 'utf-8'));
+// console.log(config.order.order_created); // Output: "Your order has been placed successfully."
 
 
 

@@ -3,7 +3,9 @@ import { cartModel } from '../models/cartModel';
 import { successResponse, errorResponse } from '../helpers/responseHelper';
 
 import { helper } from '../helpers/responseHelper';
+import {cartItemsModel} from '../models/cartItemsModel';
 
+const objCartModel = new cartItemsModel();
 const objHelper  =  new helper();
 
 const cartObj = new cartModel();
@@ -44,9 +46,11 @@ export const updateCartItem = async (req: Request, res: Response) => {
         const userId = (req as any).user?.userId;
         const itemId = Number(req.params.itemId);
         const { quantity } = req.body;
-        const updateResult = await cartObj.updateCartItemDB(userId, itemId, quantity);
+        // const updateResult = await cartObj.updateCartItemDB(userId, itemId, quantity);
+                const updateResult = await objCartModel.updateCartItemDB(userId, itemId, quantity);
+
         if(updateResult.error){
-            objHelper.error(res, 400, updateResult.message);
+            objHelper.error(res, 400, updateResult.message); return
         }
         objHelper.success(res, updateResult.message, updateResult.data);
     } catch (err) {
@@ -59,9 +63,11 @@ export const removeCartItem = async (req: Request, res: Response) => {
     try {
         const userId = (req as any).user?.userId;
         const itemId = Number(req.params.itemId);
-        const deleteResult = await cartObj.removeCartItemDB(userId, itemId);
+        // const deleteResult = await cartObj.removeCartItemDB(userId, itemId);
+        const deleteResult = await objCartModel.removeCartItemDB(userId, itemId);
+
         if(deleteResult.error){
-            objHelper.error(res, 400, deleteResult.message);
+            objHelper.error(res, 400, deleteResult.message); return
         }
         objHelper.success(res, deleteResult.message, deleteResult.data);
     } catch (err) {
@@ -73,9 +79,11 @@ export const removeCartItem = async (req: Request, res: Response) => {
 export const clearCart = async (req: Request, res: Response) => {
     try {
         const userId = (req as any).user?.userId;
-        const clearResult = await cartObj.clearCartDB(userId);
+        const clearResult = await objCartModel.clearCartDB(userId);
+
+        // const clearResult = await cartObj.clearCartDB(userId);
         if(clearResult.error){
-            objHelper.error(res, 400, clearResult.message);
+            objHelper.error(res, 400, clearResult.message); return
         }
         objHelper.success(res, clearResult.message, clearResult.data);
     } catch (err) {

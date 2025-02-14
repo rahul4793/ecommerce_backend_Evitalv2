@@ -6,14 +6,12 @@ const objHelper  =  new helper();
 
 const addObj = new addressModel();
 
-import { error } from 'console';
 
 export const getUserAddressesId = async (req: Request, res: Response) => {
     try {
         const userId = parseInt(req.params.id);
-        const addresses = await addObj.getAddressesFromDBbyID(userId);
-        if (addresses.error) {
-            objHelper.error(res, 400, addresses.message);
+        const addresses = await addObj.getAddressesFromDB(userId);        if (addresses.error) {
+            objHelper.error(res, 400, addresses.message); 
         }
         objHelper.success(res, addresses.message, addresses.data);
       } catch (error) {
@@ -25,7 +23,6 @@ export const getUserAddresses = async (req: Request, res: Response) => {
     try {
         const userId = (req as any).user?.userId;
         const result = await addObj.getAddressesFromDB(userId);
-
         if (result.error || result.data === null || (Array.isArray(result.data) && result.data.length === 0)) {
             objHelper.error(res, 400, result.message);
         }
@@ -37,13 +34,12 @@ export const getUserAddresses = async (req: Request, res: Response) => {
 
 export const getUserAddressesById = async (req: Request, res: Response) => {
     try {
-        const userId = parseInt(req.params.id);
-        const result = await addObj.getAddressesFromDBbyID(userId);
-
-        if (result.error) {
-            objHelper.error(res, 400, result.message);
+        const userId = (req as any).user?.userId;
+        const addresses = await addObj.getAddressesFromDB(userId);
+        if (addresses.error) {
+            objHelper.error(res, 400, addresses.message);
         }
-        objHelper.success(res, result.message, result.data);
+        objHelper.success(res, addresses.message, addresses.data);
       } catch (error) {
         objHelper.error(res, 500, "Server Error");
       }
@@ -54,14 +50,16 @@ export const addAddress = async (req: Request, res: Response) => {
         const userId = (req as any).user?.userId;
         const { full_address, state, city, zip_code } = req.body;
         const result = await addObj.addAddressToDB(userId, full_address, state, city, zip_code);
+        console.log(result)
         if(result.error){
-            objHelper.error(res, 400, result.message);
+            objHelper.error(res, 400, result.message); return
         }
         objHelper.success(res, result.message, result.data);
     } catch (err) {
         objHelper.error(res, 500, "Server Error");
     }
-};
+}
+
 
 export const updateAddress = async (req: Request, res: Response) => {
     try {

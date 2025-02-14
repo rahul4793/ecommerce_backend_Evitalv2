@@ -77,7 +77,7 @@ export const getUserByEmail = async (req: Request, res: Response): Promise<void>
         const { email } = req.body;
         const user = await userObj.getUserByEmailFromDB(email);
         if(user.error){
-            objHelper.error(res, 400, user.message);
+            objHelper.error(res, 400, user.message); return
         }
         objHelper.success(res, user.message, user.data);
     } catch (err) {

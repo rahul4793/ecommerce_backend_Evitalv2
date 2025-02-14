@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import dotenv from 'dotenv';
 import jwt from 'jsonwebtoken';
 import { successResponse, errorResponse } from '../helpers/responseHelper';
+import { db } from './db';
 
 interface ServiceResponse {
     error: boolean;
@@ -11,13 +12,20 @@ interface ServiceResponse {
 }
 dotenv.config();
 
-export class userClass{
+export class userClass extends db{
+    public table: string = 'users';
+    public uniqueField: string = 'users_id';
+
+    constructor() {
+        super(); 
+    }
 
 async findUserByEmail (email: string): Promise<ServiceResponse>  {
     try {
-        const query = `SELECT * FROM users WHERE email = $1`;
-        const { rows } = await pool.query(query, [email]);
-        return successResponse("Return request placed", rows[0] || null );
+        this.where = `where email = ${email}`;
+        const query2 = await this.allRecords("*");
+        const { rows } = await pool.query(query2, [email]);
+        return successResponse("User found", rows[0] || null );
     } catch (error) {
         return errorResponse("Database error in findUserByEmail", error );
     }
@@ -57,69 +65,72 @@ async createUser  (
     phone_number?: string
 ): Promise<ServiceResponse>  {
     try {
+        const data = {
+            first_name,
+            last_name,
+            email,
+            password,
+            phone_number
+        };
         const hashedPassword = await bcrypt.hash(password, 10);
-        const result = await pool.query(
-            `INSERT INTO users (first_name, last_name, email, password, phone_number) 
-             VALUES ($1, $2, $3, $4, $5) RETURNING users_id, first_name, last_name, email, phone_number`,
-            [first_name, last_name, email, password,phone_number || null]
-        );
-        return successResponse("User created successfully", result.rows[0] );
+        data.password= hashedPassword;
+        const result2 = await this.insertRecord(data);
+        return successResponse("User created successfully", result2 );
     } catch (error) {
         return errorResponse("Database error while creating user", error);
     }
 };
 
-async getUserByIdFromDB  (id: number): Promise<ServiceResponse>  {
-    try {
-        const result = await pool.query(
-            `SELECT users_id, first_name, last_name, email, phone_number FROM users WHERE users_id = $1`,
-            [id]
-        );
-        return successResponse("OK", result.rows[0] );
-    } catch (error) {
-        return errorResponse("NOT OK", error );
-    }
-};
-
-async updateUserInDB (id: number, userData: any): Promise<ServiceResponse> {
-    const fields = [];
-    const values = [];
-    let index = 1;
-
-    for (const key in userData) {
-        if (userData[key] !== undefined && userData[key] !== null) {
-            fields.push(`${key} = $${index}`);
-            values.push(userData[key]);
-            index++;
+    async getUserByIdFromDB(id: number): Promise<ServiceResponse> {
+        try {
+            const result = await this.selectRecord(id, 'users_id, first_name, last_name, email, phone_number');
+            return successResponse("OK", result);
+        } catch (error) {
+            return errorResponse("NOT OK", error);
         }
-    }
-    if (fields.length === 0) {
-        return errorResponse("No fields to update", null );
-    }
+    };
 
-    fields.push(`updated_at = NOW()`);
-    const query = `
-        UPDATE users 
-        SET ${fields.join(", ")}
-        WHERE users_id = $${index}
-        RETURNING users_id, first_name, last_name, email, phone_number`;
+    async updateUserInDB(id: number, userData: any): Promise<ServiceResponse> {
+        try {
+            const result = await this.updateRecord(id, userData);
+            if (result) {
+                const updatedUser = await this.selectRecord(id, 'users_id, first_name, last_name, email, phone_number');
+                return successResponse("Profile updated successfully", updatedUser);
+            } else {
+              return errorResponse("User not found or update failed", null);
+            }
 
-    values.push(id);
-    const result = await pool.query(query, values);
-    return successResponse("Profile updated successfully", result.rows[0] );
-};
+        } catch (error) {
+            return errorResponse("Error updating user", error);
+        }
+    };
 
-async deleteUserFromDB (id: number): Promise<ServiceResponse> {
-    const result = await pool.query(`DELETE FROM users WHERE users_id = $1 RETURNING users_id`, [id]);
-    return successResponse("User deleted", result.rows[0] );
-};
+    async deleteUserFromDB(id: number): Promise<ServiceResponse> {
+        try {
+            const result = await this.deleteRecord(id);
+            if(result){
+              return successResponse("User deleted", {users_id: id});
+            }else{
+              return errorResponse("User not found or deletion failed", null);
+            }
 
-async getUserByEmailFromDB  (email: string): Promise<ServiceResponse>  {
-    const result = await pool.query(
-        `SELECT users_id, first_name, last_name, email, phone_number, role, status, created_at, updated_at 
-         FROM users WHERE email = $1`,
-        [email]
-    );
-    return successResponse("User found", result.rows[0] );
-};
+        } catch (error) {
+            return errorResponse("Error deleting user", error);
+        }
+    };
+
+    async getUserByEmailFromDB(email: string): Promise<ServiceResponse> {
+        try {
+            this.where = `where email = '${email}'`; 
+            const result = await this.allRecords('users_id, first_name, last_name, email, phone_number, role, status, created_at, updated_at');
+            if(result && result.length > 0){
+              return successResponse("User found", result[0]);
+            }else{
+              return errorResponse("User not found", null);
+            }
+
+        } catch (error) {
+            return errorResponse("Error fetching user", error);
+        }
+    };
 }

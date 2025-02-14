@@ -47,7 +47,7 @@ export const getProductController = async (req: Request, res: Response): Promise
     try {
         const product = await productObj.getProductById(Number(req.params.id));
         if(product.error){
-            objHelper.error(res, 400, product.message); 
+            objHelper.error(res, 400, product.message); return
         }
         objHelper.success(res, product.message, product.data);
     } catch (err) {
@@ -62,7 +62,7 @@ export const updateProductController = async (req: Request, res: Response): Prom
         const productId = Number(req.params.id);
         const updatedProduct = await productObj.updateProduct(productId, req.body);
         if(updatedProduct.error){
-            objHelper.error(res, 400, updatedProduct.message);
+            objHelper.error(res, 400, updatedProduct.message); return
         }
         objHelper.success(res, updatedProduct.message, updatedProduct.data);
     } catch (err) {
@@ -75,7 +75,7 @@ export const deleteProductController = async (req: Request, res: Response): Prom
     try {
         const deletedProduct = await productObj.deleteProduct(Number(req.params.id));
         if(deletedProduct.error){
-            objHelper.error(res, 400, deletedProduct.message);
+            objHelper.error(res, 400, deletedProduct.message); return
         }
         objHelper.success(res, deletedProduct.message, deletedProduct.data);
     } catch (err) {
@@ -86,7 +86,7 @@ export const getProductByCategoryController = async (req: Request, res: Response
     try {
         const categoryProducts = await productObj.getProductByCategory(Number(req.params.id));
         if(categoryProducts.error){
-            objHelper.error(res, 400, categoryProducts.message);
+            objHelper.error(res, 400, categoryProducts.message); return
         }
         objHelper.success(res, categoryProducts.message, categoryProducts.data);
     } catch (err) {

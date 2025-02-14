@@ -9,7 +9,7 @@ export const createReturnRequest = async (req: Request, res: Response): Promise<
         const { order_items_id, quantity, return_reason } = req.body;
         const result = await returnObj.processReturnRequest(userId, order_items_id, quantity, return_reason);
         if(result.error){
-                   objHelper.error(res, 400, result.message);
+                   objHelper.error(res, 400, result.message); return
                }
                objHelper.success(res, result.message, result.data);
            } catch (err) {
@@ -23,7 +23,7 @@ export const approveReturn = async (req: Request, res: Response): Promise<void> 
         const { return_items_id } = req.body;
         const result = await returnObj.processReturnApproval(return_items_id);
         if(result.error){
-            objHelper.error(res, 400, result.message);
+            objHelper.error(res, 400, result.message); return
         }
         objHelper.success(res, result.message, result.data);
     } catch (err) {

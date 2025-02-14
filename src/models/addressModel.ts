@@ -1,100 +1,102 @@
-import pool from '../config/db';
 import { successResponse, errorResponse, ServiceResponse } from '../helpers/responseHelper';
+import { db } from './db'; 
 
-export class addressModel {
-    async getAddressesFromDB (userId: number) {
-    try {
-        const result = await pool.query(
-            `SELECT * FROM addresses WHERE users_id = $1 ORDER BY is_default DESC, created_at DESC`,
-            [userId]
-        );
-        if (result.rows.length === 0) {
-        return errorResponse("No addresses found for the given user ID", null);
-        }
-        return successResponse("Addresses retrieved successfully", result.rows);
-    } catch (error) {
-        return errorResponse("Database error while fetching addresses", error);
+export class addressModel extends db { 
+    public table: string = 'addresses';
+    public uniqueField: string = 'addresses_id';
+
+    constructor() {
+        super(); 
     }
-};
-
-
-
-async getAddressesFromDBbyID  (userId: number) {
-    return await this.getAddressesFromDB(userId);
-};
-
-async addAddressToDB  (userId: number, fullAddress: string, state: string, city: string, zipCode: string)  {
-    try {
-        const result = await pool.query(
-            `INSERT INTO addresses (users_id, full_address, state, city, zip_code) 
-             VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-            [userId, fullAddress, state, city, zipCode]
-        );
-        return errorResponse("Address added successfully", result.rows[0]);
-    } catch (error) {
-        return errorResponse("Database error while adding address", error);
-    }
-};
-
-async updateAddressInDB  (userId: number, addressId: number, updateData: any)  {
-    try {
-        const fields = [];
-        const values = [];
-        let index = 1;
-
-        for (const key in updateData) {
-            if (updateData[key] !== undefined && updateData[key] !== null) {
-                fields.push(`${key} = $${index}`);
-                values.push(updateData[key]);
-                index++;
+    async getAddressesFromDB(userId: number): Promise<ServiceResponse> {
+        try {
+            this.where = `WHERE users_id = ${userId} ORDER BY is_default DESC, created_at DESC`;
+            const result = await this.allRecords(); 
+            if (!result || result.length === 0) {
+                return errorResponse("No addresses found for the given user ID", null);
             }
+            return successResponse("Addresses retrieved successfully", result);
+        } catch (error) {
+            return errorResponse("Database error while fetching addresses", error);
         }
+    };
 
-        if (fields.length === 0) {
-            return errorResponse("No fields provided for update", null);
+    async getAddressesFromDBbyID(userId: number): Promise<ServiceResponse> {
+        return await this.getAddressesFromDB(userId);
+    };
+
+    async addAddressToDB(userId: number, fullAddress: string, state: string, city: string, zipCode: string): Promise<ServiceResponse> {
+        try {
+            const data = {
+                users_id: userId,
+                full_address: fullAddress,
+                state: state,
+                city: city,
+                zip_code: zipCode
+            };
+            const result = await this.insertRecord(data);
+            if(result){
+              return successResponse("Address added successfully", result);
+            }else{
+              return errorResponse("Database error while adding address", null);
+            }
+        } catch (error) {
+            return errorResponse("Database error while adding address", error);
         }
+    };
 
-        fields.push(`updated_at = CURRENT_TIMESTAMP`);
-        const query = `
-            UPDATE addresses 
-            SET ${fields.join(", ")}
-            WHERE addresses_id = $${index} AND users_id = $${index + 1}
-            RETURNING *`;
+    async updateAddressInDB(userId: number, addressId: number, updateData: any): Promise<ServiceResponse> {
+        try {
+            this.where = `where addresses_id = ${addressId} AND users_id = ${userId}`;
+            const result = await this.updateRecord(addressId,updateData);
+            if (result > 0) {
+                return successResponse("Address updated successfully", null);
+            } else {
+                return errorResponse("Address not found or update failed", null);
+            }
+        } catch (error) {
+            return errorResponse("Database error while updating address", error);
+        }
+    };
 
-        values.push(addressId, userId);
-
-        const result = await pool.query(query, values);
-        return result.rows.length > 0
-            ? { error: false, message: "Address updated successfully", data: result.rows[0] }
-            : { error: true, message: "Address not found or update failed", data: null };
-    } catch (error) {
-        return errorResponse("Database error while updating address", error);
-    }
-};
-
-async deleteAddressFromDB  (userId: number, addressId: number)  {
+    async deleteAddressFromDB(userId: number, addressId: number): Promise<ServiceResponse> {
+        try {
+            this.where = `addresses_id = ${addressId} AND users_id = ${userId}`;
+            const result = await this.deleteRecord(addressId);
+            if (result > 0) {
+                return successResponse("Address deleted successfully", null);
+            } else {
+                return errorResponse("Address not found or already deleted", null);
+            }
+        } catch (error) {
+            return errorResponse("Database error while deleting address", error);
+        }
+    };
+async setDefaultAddressInDB(userId: number, addressId: number): Promise<ServiceResponse> {
     try {
-        const result = await pool.query(
-            `DELETE FROM addresses WHERE addresses_id = $1 AND users_id = $2 RETURNING *`,
-            [addressId, userId]
-        );
-        return result.rows.length > 0
-            ? { error: false, message: "Address deleted successfully", data: null }
-            : { error: true, message: "Address not found or already deleted", data: null };
-    } catch (error) {
-        return errorResponse("Database error while deleting address", error);
-    }
-};
+        // Set all addresses for the user to NOT default (still need raw query)
+        await this.update(this.table, { is_default: false }, `users_id = ${userId}`);
 
-async setDefaultAddressInDB  (userId: number, addressId: number)  {
-    try {
-        await pool.query(`UPDATE addresses SET is_default = FALSE WHERE users_id = $1`, [userId]);
-        await pool.query(`UPDATE addresses SET is_default = TRUE WHERE addresses_id = $1 AND users_id = $2`, [addressId, userId]);
-        await pool.query(`UPDATE users SET default_address_id = $1 WHERE users_id = $2`, [addressId, userId]);
+        // Set the specified address as the default (using updateRecord)
+        await this.updateRecord(addressId, { is_default: true }); 
+
+        // Update the users table with the default address ID (still need raw query)
+        await this.update('users', { default_address_id: addressId }, `users_id = ${userId}`);
+
         return successResponse("Default address updated successfully", null);
 
     } catch (error) {
         return errorResponse("Database error while setting default address", error);
     }
 };
+
+
+async getUserAddress(userId: number, addressId?: number) {
+    this.where = `WHERE users_id = ${userId} AND (addresses_id = ${addressId} OR is_default = TRUE)`;
+    this.rpp =  1;this.orderby = `ORDER BY is_default DESC `
+    const result = await this.listRecords("addresses_id");
+    return result || null;
+}
+
+
 }
