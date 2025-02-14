@@ -19,6 +19,7 @@ export class OrderModel extends db{
         this.uniqueField = 'orders_id';
     }
     // Get Selected Cart Items by cart_items_id Array
+
     async getSelectedCartItems(userId: number, cartItems: number[]) {
         const result = await pool.query(
             `SELECT ci.cart_items_id, ci.products_id, ci.quantity, 
